@@ -1,0 +1,11 @@
+{
+  "type": "combosgears:super_furnace",
+  "ingredient": {
+    "item": "combosgears:ruby"
+  },
+  "result": {
+    "count": 1,
+    "id": "minecraft:diamond"
+  },
+  "cookingTime": 100
+}
