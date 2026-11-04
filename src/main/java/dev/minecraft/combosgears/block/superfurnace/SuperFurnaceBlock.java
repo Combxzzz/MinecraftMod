@@ -7,19 +7,25 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
 public class SuperFurnaceBlock extends BaseEntityBlock {
     public static final MapCodec<SuperFurnaceBlock> CODEC = simpleCodec(SuperFurnaceBlock::new);
+    public static final BooleanProperty LIT = BlockStateProperties.LIT;
 
     public SuperFurnaceBlock(Properties properties) {
         super(properties);
+        this.registerDefaultState(this.getStateDefinition().any().setValue(LIT, false));
     }
 
     @Override
@@ -43,6 +49,11 @@ public class SuperFurnaceBlock extends BaseEntityBlock {
             return null;
         }
         return createTickerHelper(blockEntityType, ModBlockEntity.SUPER_FURNACE_BE.get(), SuperFurnaceBlockEntity::serverTick);
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(LIT);
     }
 
     @Override
