@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "combosgears:block/super_furnace_top",
+    "up": "combosgears:block/super_furnace_top",
+    "north": "combosgears:block/super_furnace_front_off",
+    "south": "combosgears:block/super_furnace_side",
+    "east": "combosgears:block/super_furnace_side",
+    "west": "combosgears:block/super_furnace_side",
+    "particle": "combosgears:block/super_furnace_front_off"
+  }
+}

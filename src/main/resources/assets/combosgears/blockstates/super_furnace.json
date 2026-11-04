@@ -1,0 +1,6 @@
+{
+  "variants" : {
+    "lit=false" : { "model" :  "combosgears:block/super_furnace_off" },
+    "lit=true" : { "model" :  "combosgears:block/super_furnace_on" }
+  }
+}
