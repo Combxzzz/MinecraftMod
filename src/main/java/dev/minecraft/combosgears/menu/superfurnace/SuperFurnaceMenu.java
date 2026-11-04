@@ -17,12 +17,10 @@ public class SuperFurnaceMenu extends AbstractContainerMenu {
     private final Level level;
     private final ContainerData data;
 
-    // Construtor chamado pelo cliente ao abrir o menu pela rede
     public SuperFurnaceMenu(int containerId, Inventory inv, FriendlyByteBuf extraData) {
         this(containerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(4));
     }
 
-    // Construtor chamado pelo servidor
     public SuperFurnaceMenu(int containerId, Inventory inv, BlockEntity entity, ContainerData data) {
         super(ModMenuType.SUPER_FURNACE_MENU.get(), containerId);
         if (((SuperFurnaceBlockEntity) entity).getItemHandler().getSlots() < 3) {
@@ -32,12 +30,11 @@ public class SuperFurnaceMenu extends AbstractContainerMenu {
         this.level = inv.player.level();
         this.data = data;
 
-        // Slots da Super Fornalha
-        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 0, 56, 17));  // Entrada
-        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 1, 56, 53));  // Combustível
-        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 2, 116, 35)); // Saída
+        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 0, 57, 16));  // Entrada
+        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 1, 57, 52));  // Combustível
+        this.addSlot(new SlotItemHandler(blockEntity.getItemHandler(), 2, 117, 34)); // Saída
 
-        layoutPlayerInventory(inv, 8, 84);
+        layoutPlayerInventory(inv, 9, 83);
         this.addDataSlots(data);
     }
 
@@ -48,15 +45,28 @@ public class SuperFurnaceMenu extends AbstractContainerMenu {
     public int getScaledProgress() {
         int progress = data.get(0);
         int maxProgress = data.get(1);
-        int progressArrowSize = 24; // Tamanho em pixels da seta na textura
-        return maxProgress != 0 && progress != 0 ? progress * progressArrowSize / maxProgress : 0;
+        int progressArrowSize = 22; // Tamanho em pixels da seta na textura
+        if (maxProgress <= 0 || progress <= 0) {
+            return 0;
+        }
+        // Divisao com teto (ceiling): garante que o pixel 22 (seta 100% completa)
+        // apareca durante sua fatia proporcional final e durante o craft delay,
+        // mantendo a mesma duracao uniforme de todos os outros 21 pixels.
+        return Math.min(progressArrowSize, (progress * progressArrowSize + maxProgress - 1) / maxProgress);
+    }
+
+    public boolean isLit() {
+        return data.get(2) > 0;
     }
 
     public int getScaledFuelProgress() {
         int litTime = data.get(2);
         int litDuration = data.get(3);
-        int flameSize = 14; // Tamanho em pixels do ícone de fogo na textura
-        return litDuration != 0 && litTime != 0 ? litTime * flameSize / litDuration : 0;
+        int flameSize = 13;
+        if (litDuration <= 0 || litTime <= 0) {
+            return 0;
+        }
+        return (litTime * flameSize + litDuration - 1) / litDuration;
     }
 
     @Override

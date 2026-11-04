@@ -12,6 +12,12 @@ public class SuperFurnaceScreen extends AbstractContainerScreen<SuperFurnaceMenu
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(CombosGearsMod.MODID, "textures/gui/super_furnace_gui.png");
 
+    private static final ResourceLocation LIT_PROGRESS =
+            ResourceLocation.fromNamespaceAndPath(CombosGearsMod.MODID, "textures/assets/superfurnace/lit_progress.png");
+
+    private static final ResourceLocation PROGRESS =
+            ResourceLocation.fromNamespaceAndPath(CombosGearsMod.MODID, "textures/assets/superfurnace/burn_progress.png");
+
     public SuperFurnaceScreen(SuperFurnaceMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
     }
@@ -21,7 +27,6 @@ public class SuperFurnaceScreen extends AbstractContainerScreen<SuperFurnaceMenu
         int x = (width - imageWidth) / 2;
         int y = (height - imageHeight) / 2;
 
-        // Renderiza o fundo principal da GUI (substituição limpa para o 1.21)
         guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 256, 256);
 
         renderProgressArrow(guiGraphics, x, y);
@@ -30,16 +35,29 @@ public class SuperFurnaceScreen extends AbstractContainerScreen<SuperFurnaceMenu
 
     private void renderProgressArrow(GuiGraphics guiGraphics, int x, int y) {
         if (menu.isCrafting()) {
-            int l = menu.getScaledProgress();
-            // Desenha a seta de progresso preenchendo da esquerda para a direita
-            guiGraphics.blit(TEXTURE, x + 79, y + 34, 176, 14, l + 1, 16, 256, 256);
+            int progressWidth = Math.clamp(menu.getScaledProgress(), 0, 22);
+            guiGraphics.blit(
+                    PROGRESS,
+                    x + 81, y + 33,
+                    0, 0,
+                    progressWidth, 15,
+                    22, 15
+            );
         }
     }
 
     private void renderFuelFlame(GuiGraphics guiGraphics, int x, int y) {
-        int k = menu.getScaledFuelProgress();
-        // Desenha o fogo do combustível de baixo para cima
-        guiGraphics.blit(TEXTURE, x + 56, y + 36 + (14 - k), 176, 14 - k, 14, k + 1, 256, 256);
+        int flameHeight = Math.clamp(menu.getScaledFuelProgress(), 0, 13);
+        if (flameHeight == 0) {
+            return;
+        }
+        guiGraphics.blit(
+                LIT_PROGRESS,
+                x + 56, y + 36 + (13 - flameHeight),
+                0, 13 - flameHeight,
+                13, flameHeight,
+                13, 13
+        );
     }
 
     @Override

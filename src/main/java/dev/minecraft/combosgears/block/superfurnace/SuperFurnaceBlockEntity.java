@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.Containers;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
@@ -16,6 +17,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -26,6 +28,8 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 
 public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider {
+    public static final int CRAFT_HOLD_TICKS = 7; // Duracao em ticks (~0.75s) com a seta 100% completa antes de ejetar o item
+
     private final ItemStackHandler itemHandler = new ItemStackHandler(3) {
         @Override
         protected void onContentsChanged(int slot) {
@@ -34,9 +38,12 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
     };
 
     private int progress = 0;
-    private int maxProgress = 100;
+    private int maxProgress = 0;
     private int litTime = 0;
     private int litDuration = 0;
+    private int craftDelay = 0;
+
+    private ResourceLocation previousRecipe = null;
 
     private final ContainerData data;
 
@@ -85,6 +92,7 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
         super.saveAdditional(tag, registries);
         tag.put("inventory", itemHandler.serializeNBT(registries));
         tag.putInt("super_furnace.progress", progress);
+        tag.putInt("super_furnace.craft_delay", craftDelay);
         tag.putInt("super_furnace.lit_time", litTime);
         tag.putInt("super_furnace.lit_duration", litDuration);
     }
@@ -94,6 +102,7 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
         super.loadAdditional(tag, registries);
         itemHandler.deserializeNBT(registries, tag.getCompound("inventory"));
         progress = tag.getInt("super_furnace.progress");
+        craftDelay = tag.getInt("super_furnace.craft_delay");
         litTime = tag.getInt("super_furnace.lit_time");
         litDuration = tag.getInt("super_furnace.lit_duration");
     }
@@ -106,10 +115,51 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
             entity.litTime--;
         }
 
-        Optional<SuperFurnaceRecipe> recipe = entity.getCurrentRecipe();
+        Optional<RecipeHolder<SuperFurnaceRecipe>> recipe = entity.getCurrentRecipe();
+
+        if (recipe.isPresent()) {
+            ResourceLocation currentRecipeId = recipe.get().id();
+
+            if (entity.previousRecipe != null && !currentRecipeId.equals(entity.previousRecipe)) {
+                if (entity.progress != 0) {
+                    entity.progress = 0;
+                }
+                entity.craftDelay = 0;
+                changed = true;
+            }
+
+            entity.previousRecipe = currentRecipeId;
+
+            int newMaxProgress = recipe.get().value().getCookingTime();
+
+            if (entity.maxProgress != newMaxProgress) {
+                entity.maxProgress = newMaxProgress;
+                changed = true;
+            }
+        } else {
+            if (entity.maxProgress != 0) {
+                entity.maxProgress = 0;
+                changed = true;
+            }
+
+            if (entity.progress != 0) {
+                entity.progress = 0;
+                entity.craftDelay = 0;
+                changed = true;
+            }
+
+            if (entity.previousRecipe != null) {
+                entity.previousRecipe = null;
+                changed = true;
+            }
+        }
+
+        boolean canCraft = recipe.isPresent()
+                && entity.canInsertAmountIntoOutputSlot(recipe.get().value())
+                && entity.canInsertItemIntoOutputSlot(recipe.get().value());
 
         if (entity.isLit() || entity.hasFuel()) {
-            if (!entity.isLit() && recipe.isPresent() && entity.canInsertAmountIntoOutputSlot(recipe.get()) && entity.canInsertItemIntoOutputSlot(recipe.get())) {
+            if (!entity.isLit() && canCraft) {
                 entity.litTime = entity.getBurnDuration(entity.itemHandler.getStackInSlot(1));
                 entity.litDuration = entity.litTime;
                 if (entity.isLit()) {
@@ -120,18 +170,32 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
                 }
             }
 
-            if (entity.isLit() && recipe.isPresent() && entity.canInsertAmountIntoOutputSlot(recipe.get()) && entity.canInsertItemIntoOutputSlot(recipe.get())) {
-                entity.progress++;
-                if (entity.progress >= entity.maxProgress) {
-                    entity.craftItem(recipe.get());
-                    entity.progress = 0;
+            BlockState currentState = level.getBlockState(pos);
+            if (currentState.getValue(SuperFurnaceBlock.LIT) != entity.isLit()) {
+                level.setBlock(pos, currentState.setValue(SuperFurnaceBlock.LIT, entity.isLit()), 3);
+            }
+
+            if (entity.isLit() && canCraft) {
+                if (entity.progress < entity.maxProgress) {
+                    entity.progress++;
+                    entity.craftDelay = 0;
+                    changed = true;
+                } else {
+                    entity.craftDelay++;
+                    if (entity.craftDelay >= CRAFT_HOLD_TICKS) {
+                        entity.craftItem(recipe.get().value());
+                        entity.progress = 0;
+                        entity.craftDelay = 0;
+                    }
+                    changed = true;
                 }
-                changed = true;
-            } else {
+            } else if (recipe.isEmpty()) {
                 entity.progress = 0;
+                entity.craftDelay = 0;
             }
         } else if (!entity.isLit() && entity.progress > 0) {
             entity.progress = Math.max(0, entity.progress - 2);
+            entity.craftDelay = 0;
         }
 
         if (isLit != entity.isLit()) {
@@ -159,10 +223,16 @@ public class SuperFurnaceBlockEntity extends BlockEntity implements MenuProvider
         return fuelStack.getBurnTime(ModRecipes.SUPER_FURNACE_TYPE.get());
     }
 
-    private Optional<SuperFurnaceRecipe> getCurrentRecipe() {
-        SingleRecipeInput input = new SingleRecipeInput(this.itemHandler.getStackInSlot(0));
-        return this.level.getRecipeManager().getRecipeFor(ModRecipes.SUPER_FURNACE_TYPE.get(), input, this.level)
-                .map(net.minecraft.world.item.crafting.RecipeHolder::value);
+    private Optional<RecipeHolder<SuperFurnaceRecipe>> getCurrentRecipe() {
+        SingleRecipeInput input = new SingleRecipeInput(
+                this.itemHandler.getStackInSlot(0)
+        );
+
+        return this.level.getRecipeManager().getRecipeFor(
+                ModRecipes.SUPER_FURNACE_TYPE.get(),
+                input,
+                this.level
+        );
     }
 
     private boolean canInsertItemIntoOutputSlot(SuperFurnaceRecipe recipe) {
